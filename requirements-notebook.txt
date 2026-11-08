@@ -1,0 +1,6 @@
+ultralytics>=8.4.142
+opencv-python
+matplotlib
+jupyterlab
+onnx
+numpy
