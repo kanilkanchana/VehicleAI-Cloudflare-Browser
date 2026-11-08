@@ -18,3 +18,19 @@ test('YouTube links show local-upload guidance instead of false AI support',()=>
  assert.doesNotMatch(html,/youtubeFrame/);
  assert.doesNotMatch(app,/youtube-nocookie\.com\/embed/);
 });
+
+test('fullscreen mode provides two stacked videos and a right-side count board',()=>{
+ assert.match(html,/id="fullscreenBtn"/);
+ assert.match(html,/id="fullscreenBar"/);
+ assert.match(html,/id="exitFullscreenBtn"/);
+ assert.match(app,/fullscreenRoot\.requestFullscreen\(\)/);
+ assert.match(app,/document\.exitFullscreen\(\)/);
+ assert.match(app,/document\.fullscreenElement===fullscreenRoot/);
+ assert.match(css,/#workspace:fullscreen \.main-grid/);
+ assert.match(css,/grid-template-rows:repeat\(2,minmax\(0,1fr\)\)/);
+ assert.match(css,/#workspace:fullscreen \.stats-card/);
+ assert.match(css,/\.fullscreen-bar\[hidden\]\{display:none!important\}/);
+ assert.match(html,/ORIGINAL VIDEO/);
+ assert.match(html,/LIVE AI PREVIEW/);
+ assert.match(html,/DETECTION STATISTICS/);
+});

@@ -111,3 +111,50 @@ html{scroll-padding-top:96px}
 .live-text{font-size:12px;font-weight:800}
 @media(max-width:650px){.analysis-monitor{padding:16px}.analysis-facts{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.analysis-facts>span{padding:7px 6px;font-size:9px}.analysis-facts strong{font-size:15px}.analysis-message p{font-size:13px}}
 @media(prefers-reduced-motion:reduce){.analysis-indicator span{animation:none!important}}
+
+
+/* Native full-screen monitoring layout based on the user's three-zone sketch.
+   Original video at top-left, live AI below, count board full-height at right. */
+.fullscreen-bar[hidden]{display:none!important}
+.fullscreen-bar{display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:48px;flex:0 0 auto;padding:4px 3px 9px}
+.fullscreen-brand{display:flex;align-items:center;gap:9px;min-width:0}
+.fullscreen-brand img{width:34px;height:34px;object-fit:contain}
+.fullscreen-brand span{display:flex;flex-direction:column;min-width:0;gap:2px}
+.fullscreen-brand strong{font-size:14px;line-height:1.1;color:var(--text)}
+.fullscreen-brand small{font-size:10px;color:var(--sub);font-weight:700;letter-spacing:.075em}
+.fullscreen-close{cursor:pointer;flex:none;border:1px solid var(--border);border-radius:9px;color:#fff;background:#483157;padding:8px 15px;font-weight:700;font-size:14px}
+.fullscreen-close:hover,.fullscreen-close:focus-visible{background:#6d368a;border-color:var(--purple)}
+#workspace:fullscreen{box-sizing:border-box;max-width:none!important;width:100vw;height:100dvh;min-height:0;overflow:hidden;padding:9px 13px 12px!important;margin:0!important;background:var(--bg);display:flex;flex-direction:column;gap:0}
+#workspace:fullscreen::backdrop{background:var(--bg)}
+#workspace:fullscreen .sectionhead,#workspace:fullscreen .setup-bar,#workspace:fullscreen .source-card,#workspace:fullscreen .work-actions,#workspace:fullscreen .analysis-monitor,#workspace:fullscreen .activity,#workspace:fullscreen .video-hint{display:none!important}
+#workspace:fullscreen .main-grid{height:auto;flex:1 1 0;min-height:0;min-width:0;width:100%;overflow:hidden;display:grid;align-items:stretch;grid-template-columns:minmax(0,1fr) minmax(260px,26vw)!important;grid-template-rows:minmax(0,1fr);gap:12px}
+#workspace:fullscreen .media-zone{height:100%;min-height:0;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+#workspace:fullscreen .videos{display:grid;flex:1 1 0;min-width:0;min-height:0;height:100%;grid-template-columns:minmax(0,1fr)!important;grid-template-rows:repeat(2,minmax(0,1fr));gap:10px}
+#workspace:fullscreen .video-card{min-width:0;min-height:0;height:100%;max-height:100%;display:flex;flex-direction:column;border-radius:11px;overflow:hidden}
+#workspace:fullscreen .panel-title{flex:0 0 auto;padding:8px 12px;font-size:11px;min-height:31px}
+#workspace:fullscreen .panel-title .muted{font-size:10px}
+#workspace:fullscreen .video-box{flex:1 1 auto;min-height:0!important;height:auto!important;aspect-ratio:auto!important;width:100%}
+#workspace:fullscreen .video-box video,#workspace:fullscreen .video-box canvas#aiCanvas{width:100%;height:100%;object-fit:contain}
+#workspace:fullscreen .panel-foot{flex:0 0 auto;min-height:25px;padding:5px 12px;font-size:10px}
+#workspace:fullscreen .correction-panel{flex:0 0 auto;max-height:24vh;overflow:auto}
+#workspace:fullscreen .stats-card{display:block;height:100%;max-height:none;min-height:0;min-width:0;overflow-y:auto;overscroll-behavior:contain;position:static!important;top:auto!important;order:initial!important;padding:20px 17px;border-radius:11px}
+#workspace:fullscreen .stats-card .big-count{font-size:clamp(58px,7vw,100px)}
+#workspace:fullscreen .stats-card .card-title{font-size:12px}
+#workspace:fullscreen .stats-card .stat-split{margin-bottom:15px}
+#workspace:fullscreen .stats-card .review-summary{margin-bottom:12px}
+#workspace:fullscreen .stats-card .break-row{min-height:25px}
+#workspace:fullscreen .stats-card .breakdown{padding-top:4px}
+@media(max-width:950px){
+ #workspace:fullscreen .main-grid{grid-template-columns:minmax(0,1fr) minmax(220px,30vw)!important;gap:8px}
+ #workspace:fullscreen .stats-card{padding:12px}
+ #workspace:fullscreen .stats-card .big-count{font-size:58px}
+}
+@media(max-width:600px){
+ #workspace:fullscreen{overflow-y:auto;overflow-x:hidden}
+ #workspace:fullscreen .main-grid{height:auto;min-height:auto;flex:none;display:flex;flex-direction:column;overflow:visible}
+ #workspace:fullscreen .media-zone{height:auto;min-height:540px;overflow:visible}
+ #workspace:fullscreen .videos{height:auto;flex:none;grid-template-columns:1fr!important;grid-template-rows:repeat(2,minmax(230px,34dvh))}
+ #workspace:fullscreen .video-card{min-height:230px}
+ #workspace:fullscreen .stats-card{height:auto;max-height:48dvh;overflow-y:auto}
+ #workspace:fullscreen .fullscreen-brand small{font-size:9px}
+}

@@ -351,5 +351,35 @@ $('feedbackForm').onsubmit=async(e)=>{
  try{await api('feedback',{method:'POST',body:JSON.stringify({rating:Number($('rating').value),message:$('feedbackMessage').value})});text('feedbackStatus','Thank you! Your feedback was saved.');$('feedbackMessage').value='';}
  catch(e){text('feedbackStatus','Unable to save: '+e.message);}
 };
+
+// Full-screen monitoring layout reuses the existing video, AI canvas and live
+// statistics nodes. No element moves, so playback and tracking are preserved.
+const fullscreenRoot=$('workspace');
+$('fullscreenBtn').addEventListener('click',()=>{
+ if(!fullscreenRoot.requestFullscreen){
+  notice('This browser does not support full screen mode.','error');
+  return;
+ }
+ const requested=fullscreenRoot.requestFullscreen();
+ if(requested&&typeof requested.catch==='function'){
+  requested.catch(err=>notice('Unable to enter full screen: '+(err.message||'browser permission denied'),'error'));
+ }
+});
+$('exitFullscreenBtn').addEventListener('click',()=>{
+ if(document.fullscreenElement===fullscreenRoot&&document.exitFullscreen){
+  const requested=document.exitFullscreen();
+  if(requested&&typeof requested.catch==='function'){
+   requested.catch(err=>notice('Unable to close full screen: '+err.message,'error'));
+  }
+ }
+});
+document.addEventListener('fullscreenchange',()=>{
+ const active=document.fullscreenElement===fullscreenRoot;
+ $('fullscreenBar').hidden=!active;
+ $('fullscreenBtn').setAttribute('aria-pressed',String(active));
+ // Recalculate the overlaid counting line after the video pane is resized.
+ requestAnimationFrame(()=>requestAnimationFrame(drawLine));
+});
+
 window.addEventListener('pagehide',()=>{stopLoop();if(stream)stream.getTracks().forEach(t=>t.stop());clearOldUrl();});
 setGate(true);sessionStart();

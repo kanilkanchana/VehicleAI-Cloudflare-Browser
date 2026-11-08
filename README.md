@@ -6,6 +6,9 @@ Start with **[FINAL-INSTALL-GITHUB-CLOUDFLARE-SINHALA.md](FINAL-INSTALL-GITHUB-C
 
 ## Improvements in this build
 
+- **Full Screen** mode (native browser Fullscreen API) for monitoring: Original Video top-left, Live AI Preview bottom-left, full-height Vehicle Counts panel at right, with a Close button and Esc support. It reuses the existing video/canvas/statistics elements without interrupting the detection pipeline. Supports compact mobile fallback.
+
+
 - V7-style spacious hero, original+AI video side-by-side, right sticky statistics, purple dark/light theme, About and How It Works. V10.1 adds a readable animated analysis status monitor with actual processed-frame counters, frame time, and live/sequential status, plus clear YouTube unsupported guidance.
 - Numeric COCO class IDs preferred over conflicting text metadata, motion-and-size-based track matching, multi-frame label voting and post-crossing event label revision.
 - `Needs type review` indicator and explicit correction of active or recorded vehicles (Van is **manual-only**, not a pretrained class).
