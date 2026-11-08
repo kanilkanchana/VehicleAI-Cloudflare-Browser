@@ -1,5 +1,5 @@
 import {escapeHtml} from './shared.js';
-const PORTFOLIO='https://kanil-kanchana-dev.janakiswaranamali.chatgpt.site/';
+const PORTFOLIO='https://kanil-portfolio2-gw36.vercel.app/';
 const GITHUB='https://github.com/kanilkanchana';
 const LINKEDIN='https://www.linkedin.com/in/kanil-kanchana-4a8441191';
 const base64url = s => {
