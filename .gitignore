@@ -1,0 +1,16 @@
+# Secrets and local Cloudflare state; commit the ONNX model intentionally.
+.env
+.env.*
+.dev.vars
+.dev.vars.*
+.wrangler/
+wrangler.toml
+wrangler.jsonc
+node_modules/
+*.token
+*.secret
+*gmail_token*.json
+*google_oauth_client*.json
+*client_secret*.json
+**/__pycache__/
+.DS_Store
