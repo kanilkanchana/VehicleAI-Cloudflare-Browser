@@ -99,3 +99,21 @@ test('correcting uncertain event clears review and keeps export transparent',()=
  assert.equal(t.reviewCount,0);
  assert.match(csvFromEvents(t.events),/van,down,0.20,0.600,yes,no/);
 });
+
+test('short-lived bus detection stays reviewable rather than being guessed as a van',()=>{
+ const t=new CrossingTracker(.5);
+ let x=t.update([rect('bus',30,.92)],0,400,200).objects[0];
+ assert.equal(x.label,'bus');assert.equal(x.reviewNeeded,true);
+ for(let i=1;i<6;i++)x=t.update([rect('bus',30+i*2,.92)],i*.1,400,200).objects[0];
+ assert.equal(x.label,'bus');assert.equal(x.reviewNeeded,false);
+ assert.equal(t.correction(x.trackId,'van'),true);
+ x=t.update([rect('bus',45,.92)],.7,400,200).objects[0];
+ assert.equal(x.label,'van');assert.equal(x.reviewNeeded,false);
+});
+test('single erroneous bus prediction does not replace stable car after weighted voting',()=>{
+ const t=new CrossingTracker(.5);
+ for(let i=0;i<5;i++)t.update([rect('car',35+i*2,.9)],i*.1,400,200);
+ const x=t.update([rect('bus',47,.99)],.5,400,200).objects[0];
+ assert.equal(x.label,'car');
+ assert.equal(x.reviewNeeded,true);
+});

@@ -29,21 +29,33 @@ export function normalizeBoxes(results) {
 }
 function refreshClass(track) {
   if(track.manualLabel){track.label=track.manualLabel;track.uncertain=false;track.reviewNeeded=false;return;}
+  // Recent observations carry slightly more weight, but a different class needs
+  // multiple agreeing predictions before replacing an existing vehicle label.
+  // This dampens one-frame Bus/Truck/Car flicker without inventing a Van class.
+  const recent=track.votes.slice(-12);
   const scores=new Map();
-  for(const v of track.votes)scores.set(v.label,(scores.get(v.label)||0)+v.conf);
+  for(let i=0;i<recent.length;i++){
+    const v=recent[i],weight=.65+.35*(i+1)/recent.length;
+    scores.set(v.label,(scores.get(v.label)||0)+v.conf*weight);
+  }
   const ranking=[...scores.entries()].sort((a,b)=>b[1]-a[1]);
   const leader=ranking[0]?.[0]||track.label;
   const current=scores.get(track.label)||0;
   const challenger=scores.get(leader)||0;
-  // Consecutive evidence can fix a wrong initial prediction, but not a one-frame flip.
-  if(leader!==track.label && challenger>=Math.max(current*1.4,current+.7))track.label=leader;
+  const leaderVotes=recent.filter(v=>v.label===leader).length;
+  if(leader!==track.label && leaderVotes>=3 && challenger>=Math.max(current*1.45,current+.55))track.label=leader;
   const total=ranking.reduce((s,e)=>s+e[1],0);
   const share=total?(scores.get(track.label)||0)/total:1;
   track.agreement=Number(share.toFixed(2));
   const runner=ranking[1]?.[1]||0;
   const top=ranking[0]?.[1]||1;
   track.uncertain=runner>=top*.40 || track.votes.some(v=>v.classMismatch);
-  track.reviewNeeded=track.uncertain || (track.hits<3 && track.confidence<.72) || (track.hits>=3&&share<.73);
+  // A COCO "bus" prediction could actually be a van; low-evidence labels need
+  // manual review. We never automatically predict a Van class.
+  const busNeedsReview=track.label==='bus' && (track.hits<5 || track.confidence<.83);
+  const truckNeedsReview=track.label==='truck' && (track.hits<4 || track.confidence<.75);
+  track.reviewNeeded=track.uncertain || busNeedsReview || truckNeedsReview
+    || (track.hits<3 && track.confidence<.72) || (track.hits>=3&&share<.73);
 }
 export class CrossingTracker {
   constructor(lineFraction=.55){this.lineFraction=lineFraction;this.reset();}

@@ -11,6 +11,7 @@ Start with **[FINAL-INSTALL-GITHUB-CLOUDFLARE-SINHALA.md](FINAL-INSTALL-GITHUB-C
 - `Needs type review` indicator and explicit correction of active or recorded vehicles (Van is **manual-only**, not a pretrained class).
 - Letterbox-aligned counting line and responsive mobile layout.
 - Browser AI real predictions, local video/camera, CORS-enabled direct URLs, consented visitor sessions in D1, optional Gmail thank-you email, CSV and feedback, plus developer Jupyter notebook.
+- Improved playback controls: 0.5× default for video clips (0.25×/0.75×/1× selectable) and detailed 10-steps/sec sequential scan. Recent weighted class votes reduce momentary label changes; short-lived/low-confidence Bus/Truck observations are flagged for manual review. Van remains a manual correction, not an automatically detectable class.
 
 **No algorithm can guarantee a van/bus/truck label is correct from pretrained COCO YOLO26n**. A custom labeled/validated Sri Lankan vehicle dataset is needed for a dependable Van class. Reported counts are estimates, based on observed detections and tracking; no fake examples.
 

@@ -1,8 +1,8 @@
-import {CrossingTracker,normalizeBoxes,TYPES,csvFromEvents} from './tracker.mjs?v=10';
+import {CrossingTracker,normalizeBoxes,TYPES,csvFromEvents} from './tracker.mjs?v=12';
 const $=id=>document.getElementById(id);
 const tracker=new CrossingTracker(.55);
 let model=null,loadPromise=null,videoUrl=null,stream=null,sourceType=null;
-let liveRequestId=0,loopActive=false,scanActive=false,scanCancel=false,aiBusy=false,previousVideoTime=-1,lastSampleAt=0;
+let liveRequestId=0,loopActive=false,scanActive=false,scanCancel=false,aiBusy=false,previousVideoTime=-1,lastSampleAt=0,lastAnalyzedVideoTime=-1;
 let scanSource=null,objectExpiryTimer=null,sessionEmail=null,inferenceTimes=[],selectedTrackId=null,processedFrames=0;
 const video=$('player'),preview=$('aiCanvas'),ctx=preview.getContext('2d');
 const lineCanvas=$('lineCanvas'),lineCtx=lineCanvas.getContext('2d');
@@ -77,13 +77,19 @@ function clearMedia(){
  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}
  video.pause();video.removeAttribute('src');video.srcObject=null;video.load();clearOldUrl();
  $('cameraStopBtn').hidden=true;$('cameraBtn').hidden=false;$('videoEmpty').hidden=false;
- $('scanBtn').disabled=true;sourceType=null;scanSource=null;closeCorrection();resetAnalysisFacts();setAnalysisState('idle');
+ $('scanBtn').disabled=true;sourceType=null;scanSource=null;closeCorrection();resetAnalysisFacts();setAnalysisState('idle');$('playbackSpeed').disabled=false;lastAnalyzedVideoTime=-1;
 }
 function stopCurrentSource(){clearMedia();tracker.reset();redrawStats();clearPreview();text('sourceLabel','No source');text('modelStatus',model?'● Model ready':'● Model not loaded');}
-function setSource(type,label){sourceType=type;scanSource=type;tracker.reset();previousVideoTime=-1;redrawStats();clearPreview();
+function applyPlaybackSpeed(){
+ const camera=sourceType==='camera';
+ $('playbackSpeed').disabled=camera;
+ const rate=camera?1:Number($('playbackSpeed').value);
+ if(Number.isFinite(rate)&&rate>=0.25&&rate<=1)video.playbackRate=rate;
+}
+function setSource(type,label){sourceType=type;scanSource=type;tracker.reset();previousVideoTime=-1;lastAnalyzedVideoTime=-1;redrawStats();clearPreview();
  text('sourceLabel',label);$('videoEmpty').hidden=true;closeCorrection();resetAnalysisFacts();
- $('scanBtn').disabled=type==='camera';
- notice(type==='camera'?'Camera ready. Real AI starts when the camera video plays.':'Source loaded. Press Play for live AI, or choose Sequential analyze to scan sampled timeline frames.','info','ready');
+ $('scanBtn').disabled=type==='camera';applyPlaybackSpeed();
+ notice(type==='camera'?'Camera ready. Detection starts with live camera frames.':`Source loaded. Video playback set to ${video.playbackRate}×. Press Play or use Sequential analyze for a more detailed timeline scan.`,'info','ready');
 }
 function expiredObjectUrl(){
  if(sourceType==='upload'){
@@ -122,13 +128,18 @@ $('urlBtn').addEventListener('click',()=>{
  }catch(e){notice('Invalid video URL: '+e.message,'error');}
 });
 video.addEventListener('error',()=>{if(sourceType)notice('Video failed to load. Check codec or remote server CORS headers.','error');});
-video.addEventListener('loadedmetadata',()=>{drawLine();updatePosition();});
+video.addEventListener('loadedmetadata',()=>{drawLine();updatePosition();if(sourceType)applyPlaybackSpeed();});
 video.addEventListener('timeupdate',updatePosition);
 function updatePosition(){const t=video.currentTime||0;text('videoPosition',new Date(t*1000).toISOString().substring(14,19));}
 $('lineSlider').addEventListener('input',e=>{
  const fraction=Number(e.target.value)/100;tracker.setLine(fraction);closeCorrection();text('lineValue',e.target.value+'%');redrawStats();drawLine();clearPreview();notice('Counting line moved. Counts reset to avoid combining two line positions.');
 });
 $('confidence').addEventListener('input',e=>text('confidenceValue',e.target.value+'%'));
+$('playbackSpeed').addEventListener('change',()=>{
+ if(sourceType==='camera')return;
+ applyPlaybackSpeed();
+ if(sourceType)notice(`Playback speed: ${video.playbackRate}×. Slower playback can let AI inspect more frames, depending on device performance.`,'info',video.paused?'ready':'live');
+});
 function drawLine(){
  const width=lineCanvas.clientWidth,height=lineCanvas.clientHeight;if(!width||!height)return;
  const dpr=Math.min(devicePixelRatio||1,2);
@@ -223,10 +234,13 @@ async function analyzeFrame(timestamp){
 function stopLoop(){loopActive=false;liveRequestId++;}
 async function nextFrame(loopId){
  if(!loopActive||liveRequestId!==loopId||scanActive||video.paused||video.ended)return;
- if(previousVideoTime>video.currentTime+0.25){tracker.reset();redrawStats();notice('Video seeked backward: tracked count reset for this playback pass.');}
+ if(previousVideoTime>video.currentTime+0.25){tracker.reset();redrawStats();lastAnalyzedVideoTime=-1;notice('Video seeked backward: tracked count reset for this playback pass.');}
  previousVideoTime=video.currentTime;
- if(performance.now()-lastSampleAt>110){
-  lastSampleAt=performance.now();try{await analyzeFrame(video.currentTime);}catch{return;}
+ const timestamp=video.currentTime;
+ // Only process a new video time point. Frame processing is still limited by device speed.
+ if(performance.now()-lastSampleAt>80 && (sourceType==='camera'||Math.abs(timestamp-lastAnalyzedVideoTime)>0.012)){
+  lastSampleAt=performance.now();lastAnalyzedVideoTime=timestamp;
+  try{await analyzeFrame(timestamp);}catch{return;}
  }
  if(!loopActive||liveRequestId!==loopId)return;
  if(typeof video.requestVideoFrameCallback==='function')video.requestVideoFrameCallback(()=>nextFrame(loopId));
@@ -236,7 +250,7 @@ async function startLoop(){
  if(scanActive||loopActive||!sourceType)return;
  loopActive=true;const id=++liveRequestId;
  try{await loadModel();}catch{loopActive=false;return;}
- notice('On-device YOLO is processing actual video frames while playback runs. Watch the frame counter below.','info','live');
+ notice(`On-device YOLO is analyzing real frames at ${sourceType==='camera'?'camera speed':video.playbackRate+'× playback'}. Slower playback increases frame sampling opportunities, subject to device performance.`,'info','live');
  nextFrame(id);
 }
 video.addEventListener('play',startLoop);
@@ -305,7 +319,7 @@ preview.addEventListener('click',event=>{
  $('correctionPanel').hidden=false;
  text('selectedVehicle',`Track #${found.trackId} · AI: ${found.rawLabel} ${Math.round(found.conf*100)}%`);
  $('correctType').value=found.label;
- text('correctionStatus',found.reviewNeeded?'The model is uncertain about this type. Please review the vehicle.':'Choose a type and click Correct label.');
+ text('correctionStatus',found.label==='bus'||found.label==='truck'?'Bus/Truck predictions can include vans. YOLO has no automatic Van class. Choose Van (manual) if this is a van.':found.reviewNeeded?'The model is uncertain about this type. Please review the vehicle.':'Choose a type and click Correct label.');
 });
 $('applyCorrectionBtn').onclick=()=>{
  if(selectedTrackId==null)return;
