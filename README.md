@@ -6,7 +6,7 @@ Start with **[FINAL-INSTALL-GITHUB-CLOUDFLARE-SINHALA.md](FINAL-INSTALL-GITHUB-C
 
 ## Improvements in this build
 
-- V7-style spacious hero, original+AI video side-by-side, right sticky statistics, purple dark/light theme, About and How It Works.
+- V7-style spacious hero, original+AI video side-by-side, right sticky statistics, purple dark/light theme, About and How It Works. V10.1 adds a readable animated analysis status monitor with actual processed-frame counters, frame time, and live/sequential status, plus clear YouTube unsupported guidance.
 - Numeric COCO class IDs preferred over conflicting text metadata, motion-and-size-based track matching, multi-frame label voting and post-crossing event label revision.
 - `Needs type review` indicator and explicit correction of active or recorded vehicles (Van is **manual-only**, not a pretrained class).
 - Letterbox-aligned counting line and responsive mobile layout.
@@ -27,7 +27,7 @@ Start with **[FINAL-INSTALL-GITHUB-CLOUDFLARE-SINHALA.md](FINAL-INSTALL-GITHUB-C
 - Actual YOLO26 object detection on uploaded/local MP4/WebM and secure browser camera. Canvas draws YOLO bounding boxes and labels. No fake detections.
 - Lightweight sampled-frame matching and counting line crossings; shows visible-now separately from counted crossings. No claim that this reproduces Python ByteTrack or accurately processes all frames in real time.
 - Separate sequential timeline scan with selectable time steps/sec, 15-minute maximum (browser seek accuracy and performance vary). It is NOT a guarantee of decoding every original frame.
-- Direct HTTPS MP4/webm URLs **only if CORS allows browser frame reading**. YouTube links **preview only**.
+- Direct HTTPS MP4/webm URLs **only if CORS allows browser frame reading**. YouTube watch links are **not supported for AI analysis**; upload a local file you own or have permission to use.
 - Dark/light themes, responsive layout, side statistics, line slider, CSV export, report saving and feedback.
 - D1-backed email access gate with 365-day rolling HttpOnly cookie; same browser doesn't re-enter email until cookie expires/cleared. This does not verify email ownership.
 - Gmail OAuth welcome/owner notification if all encrypted Cloudflare secrets are provided. OAuth Testing refresh tokens may expire in 7 days; production configuration must be handled before relying on long-term sending.

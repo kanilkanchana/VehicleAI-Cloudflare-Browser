@@ -3,13 +3,38 @@ const $=id=>document.getElementById(id);
 const tracker=new CrossingTracker(.55);
 let model=null,loadPromise=null,videoUrl=null,stream=null,sourceType=null;
 let liveRequestId=0,loopActive=false,scanActive=false,scanCancel=false,aiBusy=false,previousVideoTime=-1,lastSampleAt=0;
-let scanSource=null,objectExpiryTimer=null,sessionEmail=null,inferenceTimes=[],selectedTrackId=null;
+let scanSource=null,objectExpiryTimer=null,sessionEmail=null,inferenceTimes=[],selectedTrackId=null,processedFrames=0;
 const video=$('player'),preview=$('aiCanvas'),ctx=preview.getContext('2d');
 const lineCanvas=$('lineCanvas'),lineCtx=lineCanvas.getContext('2d');
 const colors={car:'#24d6d7',van:'#ffd079',motorcycle:'#b88cfa',bus:'#7cdb8d',truck:'#f6b65b',bicycle:'#7596ff'};
 const text=(id,value)=>$(id).textContent=value;
-function notice(message,kind='info'){
+const phaseNames={idle:'WAITING FOR SOURCE',ready:'SOURCE READY',loading:'LOADING YOLO MODEL',live:'LIVE FRAME ANALYSIS',scanning:'SEQUENTIAL FRAME SCAN',paused:'PAUSED',complete:'SCAN COMPLETE',stopped:'SCAN STOPPED',error:'CHECK REQUIRED',blocked:'UNSUPPORTED VIDEO LINK'};
+const titles={idle:'Ready to analyze traffic',ready:'Video loaded — ready to analyze',loading:'Preparing real AI detection…',live:'Analyzing live video frames',scanning:'Scanning real video frames',paused:'AI analysis paused',complete:'Video analysis complete',stopped:'Timeline scan stopped',error:'Analysis needs attention',blocked:'Please upload a local video'};
+function setAnalysisState(state){
+ const phase=phaseNames[state]||phaseNames.idle;
+ $('analysisMonitor').dataset.state=state;
+ document.body.dataset.analysis=state;
+ text('analysisPhase',phase);
+ text('analysisHeading',titles[state]||titles.idle);
+}
+function setFrameFacts(at,visible){
+ processedFrames++;
+ text('analysisFrameCount',String(processedFrames));
+ text('analysisFrameTime',new Date(Math.max(0,at)*1000).toISOString().slice(14,19));
+ text('analysisFrameVehicles',String(visible));
+ if(!scanActive){
+  const duration=video.duration;
+  if(sourceType==='camera'||!Number.isFinite(duration)||duration<=0){text('progressPercent','LIVE');$('progressFill').style.width='100%';}
+  else{const pct=Math.min(100,Math.round(at/duration*100));text('progressPercent',pct+'%');$('progressFill').style.width=pct+'%';}
+ }
+}
+function resetAnalysisFacts(){
+ processedFrames=0;text('analysisFrameCount','0');text('analysisFrameTime','00:00');text('analysisFrameVehicles','0');
+ text('progressPercent','0%');$('progressFill').style.width='0%';
+}
+function notice(message,kind='info',state=null){
  text('processingText',message);
+ if(state||kind==='error')setAnalysisState(state||(kind==='error'?'error':'idle'));
  console[kind==='error'?'error':'log'](message);
 }
 async function api(path,options={}){
@@ -52,13 +77,13 @@ function clearMedia(){
  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}
  video.pause();video.removeAttribute('src');video.srcObject=null;video.load();clearOldUrl();
  $('cameraStopBtn').hidden=true;$('cameraBtn').hidden=false;$('videoEmpty').hidden=false;
- $('scanBtn').disabled=true;sourceType=null;scanSource=null;closeCorrection();
+ $('scanBtn').disabled=true;sourceType=null;scanSource=null;closeCorrection();resetAnalysisFacts();setAnalysisState('idle');
 }
 function stopCurrentSource(){clearMedia();tracker.reset();redrawStats();clearPreview();text('sourceLabel','No source');text('modelStatus',model?'● Model ready':'● Model not loaded');}
 function setSource(type,label){sourceType=type;scanSource=type;tracker.reset();previousVideoTime=-1;redrawStats();clearPreview();
- text('sourceLabel',label);$('videoEmpty').hidden=true;closeCorrection();
+ text('sourceLabel',label);$('videoEmpty').hidden=true;closeCorrection();resetAnalysisFacts();
  $('scanBtn').disabled=type==='camera';
- notice(type==='camera'?'Camera ready. Detection starts with the video.':'Source loaded. Press Play to run live AI or Sequential analyze for a timeline scan.');
+ notice(type==='camera'?'Camera ready. Real AI starts when the camera video plays.':'Source loaded. Press Play for live AI, or choose Sequential analyze to scan sampled timeline frames.','info','ready');
 }
 function expiredObjectUrl(){
  if(sourceType==='upload'){
@@ -81,12 +106,16 @@ $('cameraBtn').addEventListener('click',async()=>{
 });
 $('cameraStopBtn').onclick=()=>{stopCurrentSource();video.controls=true;};
 function youtubeId(raw){
- try{const u=new URL(raw);if(!['youtube.com','www.youtube.com','youtu.be','m.youtube.com'].includes(u.hostname))return null;const id=u.hostname==='youtu.be'?u.pathname.slice(1):u.searchParams.get('v');return /^[a-zA-Z0-9_-]{11}$/.test(id||'')?id:null;}catch{return null;}
+ try{const u=new URL(raw);return ['youtube.com','www.youtube.com','youtu.be','m.youtube.com','www.youtube-nocookie.com','music.youtube.com'].includes(u.hostname)?true:null;}catch{return null;}
 }
+$('switchToUploadBtn').onclick=()=>document.querySelector('[data-tab="upload"]').click();
+$('videoUrl').addEventListener('input',()=>{$('videoLinkWarning').hidden=true;});
 $('urlBtn').addEventListener('click',()=>{
- const url=$('videoUrl').value.trim();$('youtubeWrap').hidden=true;
- const yt=youtubeId(url);
- if(yt){clearMedia();$('youtubeWrap').hidden=false;$('youtubeFrame').src='https://www.youtube-nocookie.com/embed/'+yt;notice('YouTube can be watched, but browser video frames are unavailable for AI counting. Use a direct CORS-enabled MP4 link.');return;}
+ const url=$('videoUrl').value.trim();$('videoLinkWarning').hidden=true;
+ if(youtubeId(url)){
+  stopCurrentSource();$('videoLinkWarning').hidden=false;
+  notice('YouTube watch links cannot supply video frames for browser AI. Please upload a local MP4/WebM file you own or can use.','info','blocked');return;
+ }
  try{const u=new URL(url);if(!['https:','http:'].includes(u.protocol))throw new Error('HTTPS URL required');
   if(u.protocol==='http:' && location.protocol==='https:')throw new Error('HTTPS website requires HTTPS video source');
   clearMedia();video.controls=true;video.muted=false;video.crossOrigin='anonymous';video.src=u.href;video.load();setSource('url','Direct video link');
@@ -117,14 +146,14 @@ function drawLine(){
 window.addEventListener('resize',drawLine);
 function clearPreview(){
  preview.width=1024;preview.height=640;ctx.fillStyle='#0d0c17';ctx.fillRect(0,0,preview.width,preview.height);
- text('previewStatus','Waiting');text('frameIndicator','No AI frames yet');$('aiEmpty').hidden=false;
+ text('previewStatus','WAITING FOR VIDEO');text('frameIndicator','No AI frames yet');$('aiEmpty').hidden=false;
 }
 clearPreview();
 async function loadModel(){
  if(model)return model;
  if(loadPromise)return loadPromise;
  loadPromise=(async()=>{
-  text('modelStatus','◌ Loading AI model...');notice('Loading YOLO ONNX model into this browser. First use can take time.');
+  text('modelStatus','◌ Loading AI model...');notice('Loading YOLO ONNX model into this browser. First use can take time.','info','loading');
   const res=await fetch('/models/yolo26n.onnx',{method:'HEAD'});
   if(!res.ok || (res.headers.get('content-type')||'').includes('text/html'))throw new Error('YOLO ONNX model missing. Run scripts/prepare_model.bat and publish public/models/yolo26n.onnx.');
   const {YOLO}=await import('https://esm.sh/@ultralytics/yolo');
@@ -149,7 +178,7 @@ function drawFrame(boxes,at){
   const tagW=ctx.measureText(tag).width+12,tagY=Math.max(0,b.y1-f-8);
   ctx.fillStyle=color;ctx.fillRect(b.x1,tagY,tagW,f+8);ctx.fillStyle='#081018';ctx.fillText(tag,b.x1+6,tagY+f);
  }
- $('aiEmpty').hidden=true;text('previewStatus','● REAL AI OUTPUT');
+ $('aiEmpty').hidden=true;text('previewStatus',scanActive?'● SCANNING FRAMES':'● LIVE AI OUTPUT');
  text('frameIndicator',`Analyzed at ${Number(at||0).toFixed(1)}s · ${boxes.length} vehicles`);
 }
 function redrawStats(){
@@ -183,7 +212,7 @@ async function analyzeFrame(timestamp){
   const results=await ai.predict(video,{conf:Number($('confidence').value)/100});
   const boxes=normalizeBoxes(results);
   const updated=tracker.update(boxes,timestamp,video.videoWidth,video.videoHeight);
-  drawFrame(updated.objects,timestamp);redrawStats();
+  drawFrame(updated.objects,timestamp);redrawStats();setFrameFacts(timestamp,updated.objects.length);
   const dt=performance.now()-start;inferenceTimes.push(dt);if(inferenceTimes.length>16)inferenceTimes.shift();
   const ms=inferenceTimes.reduce((a,b)=>a+b,0)/inferenceTimes.length;
   text('inferenceFps',Number(1000/ms).toFixed(1));
@@ -207,12 +236,12 @@ async function startLoop(){
  if(scanActive||loopActive||!sourceType)return;
  loopActive=true;const id=++liveRequestId;
  try{await loadModel();}catch{loopActive=false;return;}
- notice('On-device YOLO analyzing while video plays. Frame rate depends on GPU/CPU.');
+ notice('On-device YOLO is processing actual video frames while playback runs. Watch the frame counter below.','info','live');
  nextFrame(id);
 }
 video.addEventListener('play',startLoop);
-video.addEventListener('pause',()=>{stopLoop();if(!scanActive)notice('Video paused. AI will resume when you press Play.');});
-video.addEventListener('ended',()=>{stopLoop();if(!scanActive)notice('Playback ended. Export CSV or run Sequential analyze for a timeline scan.');});
+video.addEventListener('pause',()=>{stopLoop();if(!scanActive&&sourceType)notice('Video paused. AI will resume when you press Play.','info','paused');});
+video.addEventListener('ended',()=>{stopLoop();if(!scanActive)notice('Playback ended. Export CSV or run Sequential analyze for a timeline scan.','info','complete');});
 function seek(video,t){return new Promise((resolve,reject)=>{
   if(Math.abs(video.currentTime-t)<.0003)return resolve();
   const cleanup=()=>{video.removeEventListener('seeked',complete);clearTimeout(timer);};
@@ -227,22 +256,22 @@ $('scanBtn').onclick=async()=>{
  if(duration>900){notice('This free browser scanner currently limits one pass to 15-minute videos. Choose a shorter clip.','error');return;}
  try{await loadModel();}catch{return;}
  stopLoop();video.pause();scanActive=true;scanCancel=false;tracker.reset();closeCorrection();redrawStats();
- $('scanBtn').disabled=true;$('stopScanBtn').disabled=false;
+ $('scanBtn').disabled=true;$('stopScanBtn').disabled=false;resetAnalysisFacts();
  const fps=Number($('scanFps').value)||5,step=1/fps;
  const samples=Math.ceil(duration*fps);
  text('countSub',`Sequential scan · ${fps} timeline steps/second`);
- notice(`Sequential scan started at ${fps} steps/sec. The browser seeks through each sampled time point.`);
+ notice(`Scanning ${samples} requested timeline steps at ${fps} steps/sec. Video frames are analyzed locally, one step at a time.`, 'info','scanning');
  try{
   for(let frame=0;frame<samples;frame++){
    if(scanCancel)break;
    const at=Math.min(duration-.0005,frame*step);
    await seek(video,at);await analyzeFrame(at);
-   const pc=Math.min(100,Math.round((frame+1)/samples*100));text('progressPercent',pc+'%');$('progressFill').style.width=pc+'%';
+   const pc=Math.min(100,Math.round(processedFrames/samples*100));text('progressPercent',pc+'%');$('progressFill').style.width=pc+'%';
    if(frame%3===0)await new Promise(r=>setTimeout(r,0));
   }
-  if(!scanCancel)notice(`Scan complete: ${tracker.events.length} tracked line crossings from ${samples} requested timeline steps. Your video was not uploaded.`);
-  else notice('Sequential scan stopped. Partial counts are retained.');
- }catch(e){notice('Scan failed: '+e.message,'error');}
+  if(!scanCancel)notice(`Completed ${processedFrames} sampled video frames. Counted ${tracker.events.length} tracked line crossings. Your video stayed on this device.`,'info','complete');
+  else notice(`Scan stopped after ${processedFrames} processed frames. Partial counts are retained.`,'info','stopped');
+ }catch(e){notice('Scan failed: '+e.message,'error','error');}
  finally{scanActive=false;$('stopScanBtn').disabled=true;$('scanBtn').disabled=false;}
 };
 // Explicit review: the pretrained COCO model has no "van" class, so users may
@@ -291,7 +320,7 @@ $('applyCorrectionBtn').onclick=()=>{
 };
 
 $('stopScanBtn').onclick=()=>{scanCancel=true;};
-$('resetBtn').onclick=()=>{if(scanActive){notice('Stop sequential scan before resetting.');return;}tracker.reset();closeCorrection();redrawStats();$('progressFill').style.width='0%';text('progressPercent','0%');notice('Counts reset.');};
+$('resetBtn').onclick=()=>{if(scanActive){notice('Stop sequential scan before resetting.');return;}tracker.reset();closeCorrection();redrawStats();resetAnalysisFacts();notice('Counts reset. Select Play or Sequential analyze to start a new count.','info',sourceType?'ready':'idle');};
 $('exportBtn').onclick=()=>{
  if(!tracker.events.length){notice('No crossing events to export yet.');return;}
  const csv=csvFromEvents(tracker.events),blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
